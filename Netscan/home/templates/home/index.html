@@ -1,0 +1,176 @@
+{% load static %}
+
+<!doctype html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Netscan UI</title>
+	<!Import stylesheet and favicon>
+	<link rel="stylesheet" href="{% static 'home/styless.css' %}">
+	<link rel="shortcut icon" type="image/x-icon" href="{% static 'home/favicon.ico' %}"/>
+</head>
+
+<!Main and settings nav bar>
+<ul>
+	<li><a href="{% url 'home' %}">Main</a></li>
+	<li><a href="{% url 'settings' %}">Settings</a></li>
+</ul>
+
+<!body holds the table head and a table row for each device.>
+<body onload="timer()">
+	<table id="table">
+		<tr class="online">
+			<td>Device</td>
+			<td>IP Address</td>
+			<td>MAC Address</td>
+			<td>Uptime/Downtime</td>
+			<td>Notifications</td>
+		</tr>
+		<!Django Template language for loop displays a row for each device
+		if the flag is 1 display with offline class, otherwise display with the online class>
+		{% for d in device %}
+		<tr id="{{d.id}}_row" class = "{% if d.down_flag == '1' %}offline{% else %}online{% endif %}">
+			<td ondblclick="edit(this)" id="{{d.id}}_name">{{ d.device }}</td>
+			<td>{{ d.ip }}</td>
+			<td>{{ d.mac }}</td>
+			<td id = "{{d.id}}_time">{{ d.uptime }}</td>
+			<td>
+				<input type="checkbox" id="{{d.id}}" onclick="send_data({{d.id}})" {% if d.notification %}checked{% endif %}>
+			</td>
+		</tr>
+		{% endfor %}
+	</table>
+</body>
+<script>
+	//Set url based on if its https or http
+	var loc = window.location
+	var wsStart = 'ws://'
+	if(loc.protocol == "https:"){wsStart = 'wss://'}
+	var endpoint = wsStart + loc.host + loc.pathname
+	//Create web socket.
+	var socket = new WebSocket(endpoint)
+	
+	//Function which handles json data sent from backend.
+	socket.onmessage = function(e){
+		var data = JSON.parse(e.data)
+		console.log("data recieved " + data.id)
+		//If the row does not exist for the device, create one.
+		if($(data.id+"_row") == null){create_row(data)}
+		
+		if(data.notification == "True"){$(data.id).checked = true;}
+		if(data.notification == "False"){$(data.id).checked = false;}
+		if(data.name){$(data.id+"_name").innerHTML = data.name;}
+		
+		if(data.uptime){
+			//If the device is changing from online to offline. Set the class to offline and set the time to 0. Change flag to foo so the time stays at 0.
+			flag = data.flag
+			if(data.flag === '1' && $(data.id + "_row").className == 'online'){
+				$(data.id + "_row").className = "offline";
+				$(data.id + "_time").innerHTML = "0 Days 0:0:0";
+				flag = 'foo'
+			}
+			
+			//If the device is changing from offline to online. Set the class to online and set the time to 0. Change flag to foo so the time stays at 0.			
+			if(data.flag === '0' && $(data.id + "_row").className == 'offline'){
+				$(data.id + "_row").className = "online";
+				$(data.id + "_time").innerHTML = "0 Days 0:0:0";
+				flag = 'foo'
+			}
+			
+			//If the time needs to be updated, set the time to the value in database.
+			if((flag === '0' && $(data.id + "_row").className == 'online') || (flag === '1' && $(data.id + "_row").className == 'offline')){
+				$(data.id + "_time").innerHTML = data.uptime;
+			}
+		}
+	}
+	
+	//Sanity Checks.
+	socket.onopen = function(e){
+		console.log("open", e)
+	}
+	socket.onerror = function(e){
+		console.log("error", e)
+	}
+	socket.onclose = function(e){
+		console.log("close", e)
+	}
+	
+	//Function which handles sending notification data to the backend.
+	function send_data(id){
+		var args;
+		if(document.getElementById(id).checked){args = {"id": id, "notification": "True"}}
+		else{args = {"id": id, "notification": "False"}}
+		socket.send(JSON.stringify(args))
+	}
+	
+	function send_name(id){
+		var args;
+		var name = $(id).innerHTML;
+		var re = /[0-9]+/
+		var val = re.exec(id);
+		args = {"id": val[0], "name": name};
+		socket.send(JSON.stringify(args));
+	}
+	
+	//which returns DOM of element ID
+	function $(id){return document.getElementById(id)}
+	
+	//Function that creates a new row for devices that have not been displayed yet.
+	function create_row(device){
+		console.log("CREATING ROW")
+		var table = $("table")
+		var row = table.insertRow(-1)
+		var cell1 = row.insertCell(0)
+		var cell2 = row.insertCell(1)
+		var cell3 = row.insertCell(2)
+		var cell4 = row.insertCell(3)
+		var cell5 = row.insertCell(4)
+		cell1.innerHTML = device.name
+		cell1.id = (device.id + "_name")
+		cell2.innerHTML = device.ip
+		cell3.innerHTML = device.mac
+		cell4.innerHTML = device.uptime
+		cell5.innerHTML = '<input type="checkbox" id=' + device.id + 'onclick="send_data(' + device.id + ')">'
+		row.id = (device.id + "_row")
+		row.className = 'online'
+		cell4.id = (device.id + "_time")
+	}
+	//When called it replaces the cell with a textbox, when the textbox is blurred it puts the value into the cell, and sends the data to the database.
+	function edit(cell){
+		cell.innerHTML = "<input id='r' type='text' onblur='document.getElementById(\""+cell.id+"\").innerHTML = document.getElementById(\"r\").value;send_name(\""+cell.id+"\")'autofocus>";
+	}
+</script>
+<script>
+	//Timer Function that increments the timer for each device displayed every second for obfuscation.
+	function timer(){
+		setInterval(function(){
+			var ids = {{all_ids}};
+			for(i=0;i<ids.length;i++){
+				var foo = document.getElementById(ids[i]+"_time").innerHTML;
+				var time = foo.split(":")
+				var seconds = parseInt(time[2]);
+				var minutes = parseInt(time[1]);
+				time = time[0].split(" ");
+				var hours = time[2];
+				var days = time[0];
+				seconds++;
+				if(seconds == 60){
+					minutes++;
+					seconds = 0;
+					if(minutes == 60){
+						hours++;
+						minutes = 0;
+						if(hours == 24){
+							days++;
+							hours = 0;
+						}
+					}
+				}
+				document.getElementById(ids[i]+"_time").innerHTML = (days + " Days " + hours + ":" + minutes + ":" + seconds);
+			}
+		}, 1000)
+	}
+
+</script>
+</html>

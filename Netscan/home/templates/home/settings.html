@@ -1,0 +1,119 @@
+{% load static %}
+
+<!doctype html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Netscan UI</title>
+	<!Link stylesheet and favicon>
+	<link rel="stylesheet" href="{% static 'home/settings_style.css' %}">
+	<link rel="shortcut icon" type="image/x-icon" href="{% static 'home/favicon.ico' %}"/>
+</head>
+
+<!Nav bar>
+<ul>	
+	<li><a href="{% url 'home' %}">Main</a></li>
+	<li><a href="">Settings</a></li>
+</ul>
+
+<!Onload resize textbox for ping time>
+<body onload="resize('ping_time');">
+	<!Display the ping time change UI>
+	{% for s in setting %}
+	<table>
+		<tr>
+			<td>Ping Time:</td>
+			<td><input style="width: 16px;" value="{{ s.ping_time }}" id="ping_time" type="text" onkeydown="resize('ping_time');" onblur="change_time('ping_time');"></td>
+			<td><img src="{% static 'home/plus.png' %}" width="16" height="16" onclick="increase('ping_time')"></td>
+			<td><img src="{% static 'home/minus.png' %}" width="16" height="16" onclick="decrease('ping_time')"></td>
+		</tr>
+	</table>
+	{% endfor %}
+	<!https://blog.mastykarz.nl/measuring-the-length-of-a-string-in-pixels-using-javascript/>
+	<!Used to measure the length of a string to resize the ping_time box.>
+	<span id="ruler"></span>
+</body>
+<script>
+	//function that returns DOM object
+	function $(id){return document.getElementById(id)}
+	//Function that sends json data to backend.
+	function send_data(args){socket.send(JSON.stringify(args))}
+	
+	//Set url based on if its https or http
+	var loc = window.location
+	var wsStart = 'ws://'
+	if(loc.protocol == "https:"){wsStart = 'wss://'}
+	var endpoint = wsStart + loc.host + loc.pathname
+	//Create web socket.
+	var socket = new WebSocket(endpoint)
+	
+	//When recieving data from backend, display value in frontend
+	socket.onmessage = function(e){
+		var data = JSON.parse(e.data)
+		if(data.id){
+			$(data.id).value = data.time
+		}
+		
+	}
+	
+	//Sanity Checks.
+	socket.onopen = function(e){
+		console.log("open", e)
+	}
+	socket.onerror = function(e){
+		console.log("error", e)
+	}
+	socket.onclose = function(e){
+		console.log("close", e)
+	}
+	
+	//Delta is how course you change the time using the + and - buttons
+	var delta = 1;
+	var min_time = 1;
+	
+	//https://blog.mastykarz.nl/measuring-the-length-of-a-string-in-pixels-using-javascript/
+	//Returns the length in pixels how long a string is.
+	String.prototype.visualLength = function(){
+		var ruler = $("ruler");
+		ruler.innerHTML = this;
+		return ruler.offsetWidth;
+	}
+	
+	//Function which resizes a text box to the length of the text.
+	function resize(id){
+		var textbox_size = 16;
+		var val = $(id).value;
+		var len = val.visualLength();
+		if(len<textbox_size){len = textbox_size;}
+		$(id).style['width'] = len + 'px';
+	}
+	
+	//When using the + button it will increase the value and send the data to the backend.
+	function increase(id){
+		var val = parseInt($(id).value) + delta;
+		$(id).value = val;
+		resize(id);
+		var args = {'id': id, 'time': val}
+		send_data(args);
+	}
+	//When using the - button it will decrease the value and send the data to the backend.
+	function decrease(id){
+		var val = parseInt($(id).value) - delta;
+		if (val < min_time){
+			val = min_time
+			return
+		}
+		$(id).value = val;
+		resize(id);
+		var args = {'id': id, 'time': val}
+		send_data(args);
+	}
+	//When setting the value using the keyboard, when de-selected the value is sent to the backend.
+	function change_time(id){
+		var time = $(id).value
+		var args = {'id': id, 'time': time}
+		send_data(args)
+	}
+</script>
+</html>

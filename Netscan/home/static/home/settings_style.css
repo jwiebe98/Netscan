@@ -1,0 +1,43 @@
+body {
+	background: #00a37d;
+	font-family: helvetica;
+	margin: 0;
+}
+
+p {
+	margin: 20px;
+}
+
+ul {
+	list-style-type: none;
+	margin: 0;
+ 	padding: 0;
+ 	overflow: hidden;
+ 	background-color: #007a5e;
+}
+
+li {
+	float: left;
+	font-size: 1.25em;
+}
+
+li a {
+	display: block;
+	color: black;
+	text-align: center;
+	padding: 14px 16px;
+	text-decoration: none;
+}
+
+li a:hover {
+	background-color: #006b52;
+}
+
+td {
+	float: left;
+}
+
+/*https://blog.mastykarz.nl/measuring-the-length-of-a-string-in-pixels-using-javascript/*/
+#ruler { visibility: hidden; white-space: nowrap; }
+
+
